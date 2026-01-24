@@ -1,0 +1,19 @@
+{
+  "Icon": "Icons/ItemCategories/NaturalCoalOreCategory.png",
+  "Order": 4,
+  "Children": [
+    {
+      "Id": "Blocks",
+      "Name": "server.ui.naturalcoalorecategory.blocks",
+      "Icon": "Icons/ItemCategories/Blocks.png",
+      "InfoDisplayMode": "Tooltip"
+    },
+    {
+      "Id": "Items",
+      "Name": "server.ui.naturalcoalorecategory.items",
+      "Icon": "Icons/ItemCategories/NaturalCoalOreItems.png"
+    }
+  ],
+  "Id": "NaturalCoalOreCategory",
+  "Name": "NaturalCoalOreCategory"
+}

@@ -1,0 +1,19 @@
+{
+  "Input": [
+    {
+      "ItemId": "Ore_Coal",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Coal_Dust",
+    "Quantity": 4
+  },
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "Salvagebench"
+    }
+  ],
+  "TimeSeconds": 16
+}

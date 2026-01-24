@@ -1,0 +1,19 @@
+{
+  "Input": [
+    {
+      "ResourceTypeId": "Wood_Trunk",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Ingredient_Charcoal",
+    "Quantity": 1
+  },
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "Furnace"
+    }
+  ],
+  "TimeSeconds": 4
+}

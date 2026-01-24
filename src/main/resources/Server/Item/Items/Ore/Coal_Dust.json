@@ -1,0 +1,41 @@
+{
+  "TranslationProperties": {
+    "Name": "server.Coal_Dust.name",
+    "Description": "server.Coal_Dust.description"
+  },
+  "Categories": [
+    "Blocks.Ores",
+    "NaturalCoalOreCategory.Items"
+  ],
+  "Icon": "Icons/ItemsGenerated/Coal_Dust.png",
+  "Model": "Blocks/Stone/Crushed_Coal.blockymodel",
+  "Texture": "Resources/Ores/Ore_Textures/Coal.png",
+  "PlayerAnimationsId": "Block",
+  "IconProperties": {
+    "Scale": 0.6,
+    "Rotation": [
+      91,
+      64,
+      62
+    ],
+    "Translation": [
+      -1,
+      -1
+    ]
+  },
+  "ResourceTypes": [
+    {
+      "Id": "Fuel"
+    }
+  ],
+  "FuelQuality": 4,
+  "Tags": {
+    "Type": [
+      "Ingredient"
+    ]
+  },
+  "MaxStack": 100,
+  "ItemSoundSetId": "ISS_Blocks_Stone",
+  "DropOnDeath": true,
+  "Scale": 1.5
+}

@@ -1,0 +1,19 @@
+Ore_Coal.name = Coal
+Ore_Coal.description = \n• A dense coal that burns longer than charcoal.\n• can be used for fuel. \n• <color is="#d9c60d">Fuel Quality: 8</color>
+Ore_Coal_Stone.name = Stone Coal Ore
+Ore_Coal_Sandstone.name = Sandstone Coal Ore
+Ore_Coal_Sandstone_Red.name = Sandstone Red Coal Ore
+Ore_Coal_Sandstone_White.name = Sandstone White Coal Ore
+Ore_Coal_Basalt.name = Basalt Coal Ore
+Ore_Coal_Marble.name = Marble Coal Ore
+Ore_Coal_Quartzite.name = Quartzite Coal Ore
+Ore_Coal_Shale.name = Shale Coal Ore
+Ore_Coal_Slate.name = Slate Coal Ore
+Ore_Coal_Volcanic.name = Volcanic Coal Ore
+Ore_Coal_Aqua.name = Aqua Coal Ore
+
+Coal_Dust.name = Crushed Coal
+Coal_Dust.description = \n• can be made in salvager's workbench.\n• can be used for fuel.\n•  <color is="#d9c60d">Fuel Quality: 4</color>
+
+ui.naturalcoalorecategory.blocks = NaturalCoalOre Blocks
+ui.naturalcoalorecategory.items = NaturalCoalOre Items
