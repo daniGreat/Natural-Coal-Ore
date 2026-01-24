@@ -34,7 +34,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class CoalPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
-    // Cached block data (thread-safe initialization)
     private volatile BlockCache.BlockCaches blockCache;
     private final AtomicBoolean initializationAttempted = new AtomicBoolean(false);
 
@@ -115,7 +114,6 @@ public class CoalPlugin extends JavaPlugin {
             return;
         }
 
-        // Deterministic seeding based on chunk coordinates
         long chunkSeed = computeChunkSeed(chunk.getX(), chunk.getZ());
         Random chunkRandom = new Random(chunkSeed);
         CoalOreConfig cfg = this.config.get();
@@ -165,7 +163,6 @@ public class CoalPlugin extends JavaPlugin {
             return;
         }
 
-        // Deterministic seeding based on chunk coordinates
         long chunkSeed = computeChunkSeed(chunk.getX(), chunk.getZ());
         Random chunkRandom = new Random(chunkSeed);
         CoalOreConfig cfg = this.config.get();
@@ -183,7 +180,7 @@ public class CoalPlugin extends JavaPlugin {
 
             BlockCache.OreType oreType = cache.getOreByName(customOre.getOreName());
             if(oreType == null) continue;
-            // Each custom ore gets its own veins
+
             int customVeins = customOre.getVeinsPerChunk() + chunkRandom.nextInt(2);
 
             for (int i = 0; i < customVeins; i++) {
@@ -207,7 +204,6 @@ public class CoalPlugin extends JavaPlugin {
     }
 
     private int computeOreY(Random random) {
-        // Triangular distribution favoring lower Y values
         double factor = Math.pow(random.nextDouble(), 1.5);
         CoalOreConfig cfg = this.config.get();
 
@@ -220,7 +216,6 @@ public class CoalPlugin extends JavaPlugin {
             return cache;
         }
 
-        // Only attempt initialization once
         if (!initializationAttempted.compareAndSet(false, true)) {
             return null;
         }
@@ -310,9 +305,6 @@ public class CoalPlugin extends JavaPlugin {
     }
 
 
-    /**
-     * Generates a vein using overlapping spherical clusters.
-     */
     private int generateVein(WorldChunk chunk, BlockCache.BlockCaches cache, int startX, int startY, int startZ,
                              int size, Random rand,BlockCache.OreType specificOre) {
         int placed = 0;
@@ -323,7 +315,7 @@ public class CoalPlugin extends JavaPlugin {
         int y = startY;
         int z = startZ;
 
-        int maxAttempts = size * 3;  // try harder to place all blocks
+        int maxAttempts = size * 3;
         int targetBlocks = size;
 
 
@@ -337,15 +329,14 @@ public class CoalPlugin extends JavaPlugin {
                 }
             }
 
-            // Random walk to next position (adjacent block)
             int direction = rand.nextInt(10);
             switch (direction) {
-                case 0, 1 -> x++;      // 20% chance
-                case 2, 3 -> x--;      // 20% chance
-                case 4 -> y++;         // 10% chance
-                case 5 -> y--;         // 10% chance
-                case 6, 7 -> z++;      // 20% chance
-                case 8, 9 -> z--;      // 20% chance
+                case 0, 1 -> x++;
+                case 2, 3 -> x--;
+                case 4 -> y++;
+                case 5 -> y--;
+                case 6, 7 -> z++;
+                case 8, 9 -> z--;
             }
         }
 
@@ -357,7 +348,6 @@ public class CoalPlugin extends JavaPlugin {
             int currentBlock = chunk.getBlock(x, y, z);
 
             if (specificOre != null) {
-                // Use the specific ore if it can replace this block
                 if (specificOre.canReplace(currentBlock) && specificOre.isValidAtY(y)) {
                     chunk.setBlock(x, y, z, specificOre.id, specificOre.type, 0, 0, 4);
                     return true;
@@ -375,43 +365,6 @@ public class CoalPlugin extends JavaPlugin {
         }
         return false;
     }
-
-    /*
-    private int placeCluster(WorldChunk chunk, BlockCache.BlockCaches cache, int x, int y, int z,
-                             int radius, int chunkX, int chunkZ, Random rand) {
-        int placed = 0;
-
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-                    if (dist > radius + rand.nextFloat() * 0.5) {
-                        continue;
-                    }
-
-                    int bx = x + dx;
-                    int by = y + dy;
-                    int bz = z + dz;
-
-                    if (by < CoalOreConfig.WORLD_MIN_Y || by > CoalOreConfig.WORLD_MAX_Y) {
-                        continue;
-                    }
-
-                    // Check chunk bounds
-                    if ((bx >> CoalOreConfig.CHUNK_SHIFT) != chunkX || (bz >> CoalOreConfig.CHUNK_SHIFT) != chunkZ) {
-                        continue;
-                    }
-
-                    if (tryPlaceOre(chunk, cache, bx, by, bz, rand)) {
-                        placed++;
-                    }
-                }
-            }
-        }
-
-        return placed;
-    }
-     */
 
     // ========== COMMANDS ==========
 
