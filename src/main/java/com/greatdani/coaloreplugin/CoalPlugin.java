@@ -42,17 +42,44 @@ public class CoalPlugin extends JavaPlugin {
 
     public CoalPlugin(@Nonnull JavaPluginInit init) {
         super(init);
-        String userHome = System.getProperty("user.home");
-        Path modsPath = Path.of(userHome, "AppData", "Roaming", "Hytale", "UserData", "Mods", "NaturalCoalOre");
 
-        if(Files.exists(modsPath) && config == null) {
-            hasFilePathLocated = true;
-        } else if(!Files.exists(modsPath) && config == null && !hasFilePathLocated) {
-            hasFilePathLocated = false;
+        String userHome = System.getProperty("user.home");
+        Path userModsPath = Path.of(userHome, "AppData", "Roaming", "Hytale", "UserData", "Mods", "NaturalCoalOre", "Config");
+
+        // Use the server's plugin data directory instead of user AppData
+        Path serverModsPath = getDataDirectory(); // This gives you: mods/NaturalCoalOre/ (or similar)
+        Path configPath  = null;
+
+        if (Files.exists(userModsPath) || Files.exists(userModsPath.getParent())) {
+            try {
+                if (!Files.exists(userModsPath)) {
+                    Files.createDirectories(userModsPath);
+                }
+                configPath = userModsPath;
+                hasFilePathLocated = true;
+                LOGGER.atInfo().log("Using user mods folder: %s", configPath);
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to create user config directory: %s", e.getMessage());
+            }
+        }
+
+        // Fall back to server mods folder
+        if (configPath == null) {
+            try {
+                if (!Files.exists(serverModsPath)) {
+                    Files.createDirectories(serverModsPath);
+                }
+                configPath = serverModsPath;
+                hasFilePathLocated = true;
+                LOGGER.atInfo().log("Using server mods folder: %s", configPath);
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to create server config directory: %s", e.getMessage());
+                hasFilePathLocated = false;
+            }
         }
 
         if(hasFilePathLocated) {
-            this.config = new Config<>(Path.of(modsPath.toString(), "Config"), "CoalOre", CoalOreConfig.CODEC);
+            this.config = new Config<>(configPath, "CoalOre", CoalOreConfig.CODEC);
         }
         else {
             this.config = withConfig("CoalOre", CoalOreConfig.CODEC);
@@ -60,7 +87,7 @@ public class CoalPlugin extends JavaPlugin {
 
 
 
-        System.out.println("Directory: " + modsPath);
+        System.out.println("Directory: " + getDataDirectory());
     }
 
     @Override
@@ -80,11 +107,24 @@ public class CoalPlugin extends JavaPlugin {
         }
 
         if(cfg != null) {
-            if (cfg.isNaturalGenerationEnabled()) {
+            if(!cfg.isNaturalGenerationEnabled() && cfg.getCustomOres().isEmpty()) {
+                LOGGER.atInfo().log("No ore generation enabled");
+                // Don't register any event
+            }else if (cfg.isNaturalGenerationEnabled()) {
+                // Register onChunkCoalGenerated and onChunkCustomOreGenerated.
+                LOGGER.atInfo().log("Coal + Custom ore generation enabled");
                 getEventRegistry().registerGlobal(
                         EventPriority.LATE,
                         ChunkPreLoadProcessEvent.class,
                         this::onChunkCoalGenerated
+                );
+            } else {
+                // Register Only Custom Ore No Coal Ore Generation.
+                LOGGER.atInfo().log("Custom ore generation only");
+                getEventRegistry().registerGlobal(
+                        EventPriority.LATE,
+                        ChunkPreLoadProcessEvent.class,
+                        this::onChunkCustomOreGenerated
                 );
             }
         }
@@ -142,10 +182,10 @@ public class CoalPlugin extends JavaPlugin {
             }
         }
 
-        ChunkCustomOreGenerated(event);
+        onChunkCustomOreGenerated(event);
     }
 
-    private void ChunkCustomOreGenerated(@Nonnull ChunkPreLoadProcessEvent event) {
+    private void onChunkCustomOreGenerated(@Nonnull ChunkPreLoadProcessEvent event) {
 
         if (!event.isNewlyGenerated()) {
             return;
