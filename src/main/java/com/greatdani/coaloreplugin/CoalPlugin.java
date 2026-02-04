@@ -18,16 +18,23 @@ import com.hypixel.hytale.server.core.modules.entity.component.TransformComponen
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.events.ChunkPreLoadProcessEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.universe.world.worldgen.WorldGenLoadException;
 import com.hypixel.hytale.server.core.util.Config;
+import com.hypixel.hytale.server.worldgen.biome.Biome;
+import com.hypixel.hytale.server.worldgen.chunk.ChunkGenerator;
+import com.hypixel.hytale.server.worldgen.chunk.ZoneBiomeResult;
+import com.hypixel.hytale.server.worldgen.zone.*;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -36,6 +43,10 @@ public class CoalPlugin extends JavaPlugin {
 
     private volatile BlockCache.BlockCaches blockCache;
     private final AtomicBoolean initializationAttempted = new AtomicBoolean(false);
+
+    private ChunkGenerator cachedGenerator = null;
+    private int cachedSeed = 0;
+    private boolean generatorInitialized = false;
 
     private Config<CoalOreConfig> config = null;
     private boolean hasFilePathLocated = false;
@@ -136,6 +147,35 @@ public class CoalPlugin extends JavaPlugin {
                 cfg.getMinY(), cfg.getMaxY(), cfg.getVeinsPerChunk(), cfg.getSpawnChance());
     }
 
+    private void ensureGeneratorCached(WorldChunk chunk) {
+        if (generatorInitialized) return;
+
+        synchronized (this) {
+            if (generatorInitialized) return;  // Double-check after lock
+
+            try {
+                cachedGenerator = (ChunkGenerator) chunk.getWorld()
+                        .getWorldConfig()
+                        .getWorldGenProvider()
+                        .getGenerator();
+
+                cachedSeed = (int) Universe.get().getDefaultWorld().getWorldConfig().getSeed();
+                generatorInitialized = true;
+
+                LOGGER.atInfo().log("Cached ChunkGenerator (seed: %d)", cachedSeed);
+
+                // Log available zones for debugging
+                Zone[] zones = cachedGenerator.getZonePatternGenerator(cachedSeed).getZones();
+                for (Zone zone : zones) {
+                    LOGGER.atInfo().log("  Available zone: %s", zone.name());
+                }
+            } catch (Exception e) {
+                LOGGER.atSevere().log("Failed to cache generator: %s", e.getMessage());
+                generatorInitialized = true;  // Don't retry on every chunk
+            }
+        }
+    }
+
     private void onChunkCoalGenerated(@Nonnull ChunkPreLoadProcessEvent event) {
 
         if (!event.isNewlyGenerated()) {
@@ -148,6 +188,9 @@ public class CoalPlugin extends JavaPlugin {
             return;
         }
 
+        String zoneName = getZoneAtPosition(chunk);
+        String biomeName = getBiomeAtPosition(chunk);
+
         BlockCache.BlockCaches cache = getBlockCache();
         if (cache == null) {
             LOGGER.atWarning().log("BlockCache is null - initialization failed");
@@ -158,7 +201,20 @@ public class CoalPlugin extends JavaPlugin {
         Random chunkRandom = new Random(chunkSeed);
         CoalOreConfig cfg = this.config.get();
 
+        // Check zone restriction
+        if (!cfg.isAllowedInZone(zoneName)) {
+            generateCustomOres(event, chunk, cache, zoneName, biomeName, chunkRandom);
+            return;
+        }
+
+        // Check biome restriction
+        if (!cfg.isAllowedInBiome(biomeName)) {
+            generateCustomOres(event, chunk, cache, zoneName, biomeName, chunkRandom);
+            return;
+        }
+
         if (chunkRandom.nextDouble() > cfg.getSpawnChance()) {
+            generateCustomOres(event, chunk, cache, zoneName, biomeName, chunkRandom);
             return;
         }
 
@@ -182,7 +238,50 @@ public class CoalPlugin extends JavaPlugin {
             }
         }
 
-        onChunkCustomOreGenerated(event);
+        generateCustomOres(event, chunk, cache, zoneName, biomeName, chunkRandom);
+    }
+
+    private void generateCustomOres(ChunkPreLoadProcessEvent event, WorldChunk chunk,
+                                    BlockCache.BlockCaches cache, String zoneName, String biomeName, Random chunkRandom) {
+
+        CoalOreConfig cfg = this.config.get();
+        List<CustomOre> customOreConfigs = cfg.getCustomOres();
+
+        if (customOreConfigs == null || customOreConfigs.isEmpty()) {
+            return;
+        }
+
+        int chunkBlockX = chunk.getX() << CoalOreConfig.CHUNK_SHIFT;
+        int chunkBlockZ = chunk.getZ() << CoalOreConfig.CHUNK_SHIFT;
+
+        for (CustomOre customOre : customOreConfigs) {
+            if (!customOre.isAllowedInZone(zoneName)) {
+                continue;
+            }
+
+            if (!customOre.isAllowedInBiome(biomeName)) {
+                continue;
+            }
+
+            if (chunkRandom.nextDouble() > customOre.getSpawnChance()) {
+                continue;
+            }
+
+            BlockCache.OreType oreType = cache.getOreByName(customOre.getOreName());
+            if (oreType == null) continue;
+
+            int customVeins = customOre.getVeinsPerChunk() + chunkRandom.nextInt(2);
+
+            for (int i = 0; i < customVeins; i++) {
+                int x = chunkBlockX + chunkRandom.nextInt(CoalOreConfig.CHUNK_SIZE);
+                int z = chunkBlockZ + chunkRandom.nextInt(CoalOreConfig.CHUNK_SIZE);
+                int yRange = customOre.getMaxY() - customOre.getMinY();
+                int y = customOre.getMinY() + chunkRandom.nextInt(Math.max(1, yRange));
+                int size = customOre.getMinVeinSize() + chunkRandom.nextInt(customOre.getMaxVeinSize() - customOre.getMinVeinSize() + 1);
+
+                generateVein(chunk, cache, x, y, z, size, chunkRandom, oreType);
+            }
+        }
     }
 
     private void onChunkCustomOreGenerated(@Nonnull ChunkPreLoadProcessEvent event) {
@@ -197,6 +296,10 @@ public class CoalPlugin extends JavaPlugin {
             return;
         }
 
+        String zoneName = getZoneAtPosition(chunk);
+        String biomeName = getBiomeAtPosition(chunk);
+
+
         BlockCache.BlockCaches cache = getBlockCache();
         if (cache == null) {
             LOGGER.atWarning().log("BlockCache is null - initialization failed");
@@ -205,37 +308,8 @@ public class CoalPlugin extends JavaPlugin {
 
         long chunkSeed = computeChunkSeed(chunk.getX(), chunk.getZ());
         Random chunkRandom = new Random(chunkSeed);
-        CoalOreConfig cfg = this.config.get();
 
-
-
-        int chunkBlockX = chunk.getX() << CoalOreConfig.CHUNK_SHIFT;
-        int chunkBlockZ = chunk.getZ() << CoalOreConfig.CHUNK_SHIFT;
-
-        List<CustomOre> customOreConfigs = cfg.getCustomOres();
-        for (CustomOre customOre : customOreConfigs) {
-            if (chunkRandom.nextDouble() > customOre.getSpawnChance()) {
-                continue;
-            }
-
-            BlockCache.OreType oreType = cache.getOreByName(customOre.getOreName());
-            if(oreType == null) continue;
-
-            int customVeins = customOre.getVeinsPerChunk() + chunkRandom.nextInt(2);
-
-            for (int i = 0; i < customVeins; i++) {
-                int x = chunkBlockX + chunkRandom.nextInt(CoalOreConfig.CHUNK_SIZE);
-                int z = chunkBlockZ + chunkRandom.nextInt(CoalOreConfig.CHUNK_SIZE);
-
-                // Use THIS ore's Y range, not global
-                int yRange = customOre.getMaxY() - customOre.getMinY();
-                int y = customOre.getMinY() + chunkRandom.nextInt(yRange + 1);
-
-                int size = customOre.getMinVeinSize() + chunkRandom.nextInt(customOre.getMaxVeinSize() - customOre.getMinVeinSize() + 1);
-
-                generateVein(chunk, cache, x, y, z, size, chunkRandom, oreType);
-            }
-        }
+        generateCustomOres(event, chunk, cache, zoneName, biomeName, chunkRandom);
     }
 
     private long computeChunkSeed(int chunkX, int chunkZ) {
@@ -665,5 +739,64 @@ public class CoalPlugin extends JavaPlugin {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private void initializeGenerator(WorldChunk chunk) {
+        if (generatorInitialized) return;
+
+        try {
+            cachedGenerator = (ChunkGenerator) chunk.getWorld()
+                    .getWorldConfig()
+                    .getWorldGenProvider()
+                    .getGenerator();
+
+            cachedSeed = (int) Universe.get().getDefaultWorld().getWorldConfig().getSeed();
+            generatorInitialized = true;
+
+            LOGGER.atInfo().log("Cached ChunkGenerator and seed: %d", cachedSeed);
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to initialize generator: %s", e.getMessage());
+        }
+    }
+
+    private String getZoneAtPosition(WorldChunk chunk) {
+
+        initializeGenerator(chunk);
+
+        if (cachedGenerator == null) {
+            return "unknown";
+        }
+
+        try {
+            int centerX = chunk.getX() * 32 + 16;
+            int centerZ = chunk.getZ() * 32 + 16;
+
+            ZoneBiomeResult result = cachedGenerator.getZoneBiomeResultAt(cachedSeed, centerX, centerZ);
+            Zone zone = result.getZoneResult().getZone();
+
+            return zone.name();
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private String getBiomeAtPosition(WorldChunk chunk) {
+        initializeGenerator(chunk);
+
+        if (cachedGenerator == null) {
+            return "unknown";
+        }
+
+        try {
+            int centerX = chunk.getX() * 32 + 16;
+            int centerZ = chunk.getZ() * 32 + 16;
+
+            ZoneBiomeResult result = cachedGenerator.getZoneBiomeResultAt(cachedSeed, centerX, centerZ);
+            Biome biome = result.getBiome();
+
+            return biome.getName();
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 }

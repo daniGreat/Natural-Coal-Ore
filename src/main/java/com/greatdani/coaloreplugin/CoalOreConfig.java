@@ -48,6 +48,14 @@ public class CoalOreConfig {
                             (cfg, val, info) -> cfg.enableNaturalGeneration = val,
                             (cfg, info) -> cfg.enableNaturalGeneration)
                     .add()
+                    .append(new KeyedCodec<String[]>("AllowedZones", Codec.STRING_ARRAY),
+                            (ore, val, info) -> ore.allowedZones = val,
+                            (ore, info) -> ore.allowedZones)
+                    .add()
+                    .append(new KeyedCodec<String[]>("AllowedBiomes", Codec.STRING_ARRAY),
+                            (ore, val, info) -> ore.allowedBiomes = val,
+                            (ore, info) -> ore.allowedBiomes)
+                    .add()
                     .append(new KeyedCodec<CustomOre[]>("CustomOres", new ArrayCodec<>(CustomOre.CODEC, CustomOre[]::new)),
                             (cfg, val, info) -> cfg.customOres = val,
                             (cfg, info) -> cfg.customOres)
@@ -65,6 +73,9 @@ public class CoalOreConfig {
 
     // Chance for a chunk to contain coal (0.0 - 1.0)
     private double spawnChance = 0.85;
+
+    private String[] allowedZones = new String[0];
+    private String[] allowedBiomes = new String[0];
 
     private List<String> coalOreBlocks = List.of(
             "Ore_Coal_Stone",
@@ -143,5 +154,31 @@ public class CoalOreConfig {
 
     public boolean isNaturalGenerationEnabled() {
         return enableNaturalGeneration;
+    }
+
+    public List<String> getAllowedZones() {
+        if (allowedZones == null || allowedZones.length == 0) {
+            return List.of();
+        }
+        return Arrays.asList(allowedZones);
+    }
+
+    public List<String> getAllowedBiomes() {
+        if (allowedBiomes == null || allowedBiomes.length == 0) {
+            return List.of();
+        }
+        return Arrays.asList(allowedBiomes);
+    }
+
+    public boolean isAllowedInZone(String zoneName) {
+        List<String> zones = getAllowedZones();
+        if (zones.isEmpty()) return true;  // Empty = all zones allowed
+        return zones.contains(zoneName);
+    }
+
+    public boolean isAllowedInBiome(String biomeName) {
+        List<String> biomes = getAllowedBiomes();
+        if (biomes.isEmpty()) return true;  // Empty = all biomes allowed
+        return biomes.contains(biomeName);
     }
 }

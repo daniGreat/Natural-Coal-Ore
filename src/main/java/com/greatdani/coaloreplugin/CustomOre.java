@@ -42,10 +42,22 @@ public class CustomOre {
                             (ore, val, info) -> ore.maxVeinSize = val,
                             (ore, info) -> ore.maxVeinSize)
                     .add()
+                    .append(new KeyedCodec<String[]>("AllowedZones", Codec.STRING_ARRAY),
+                            (ore, val, info) -> ore.allowedZones = val,
+                            (ore, info) -> ore.allowedZones)
+                    .add()
+                    .append(new KeyedCodec<String[]>("AllowedBiomes", Codec.STRING_ARRAY),
+                            (ore, val, info) -> ore.allowedBiomes = val,
+                            (ore, info) -> ore.allowedBiomes)
+                    .add()
                     .build();
 
     private String oreName = "";
     private String[] replacesBlocks = new String[0];  // Array instead of List
+
+    private String[] allowedZones = new String[0];
+    private String[] allowedBiomes = new String[0];
+
     private int minY = 10;
     private int maxY = 120;
 
@@ -56,6 +68,8 @@ public class CustomOre {
 
     public CustomOre() {
     }
+
+
 
     public String getOreName() {
         return oreName;
@@ -95,6 +109,32 @@ public class CustomOre {
 
     public int getMaxVeinSize() {
         return Math.max(minVeinSize, maxVeinSize);
+    }
+
+    public List<String> getAllowedZones() {
+        if (allowedZones == null || allowedZones.length == 0) {
+            return List.of();
+        }
+        return Arrays.asList(allowedZones);
+    }
+
+    public List<String> getAllowedBiomes() {
+        if (allowedBiomes == null || allowedBiomes.length == 0) {
+            return List.of();
+        }
+        return Arrays.asList(allowedBiomes);
+    }
+
+    public boolean isAllowedInZone(String zoneName) {
+        List<String> zones = getAllowedZones();
+        if (zones.isEmpty()) return true;  // Empty = all zones allowed
+        return zones.contains(zoneName);
+    }
+
+    public boolean isAllowedInBiome(String biomeName) {
+        List<String> biomes = getAllowedBiomes();
+        if (biomes.isEmpty()) return true;  // Empty = all biomes allowed
+        return biomes.contains(biomeName);
     }
 
 }
